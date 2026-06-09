@@ -1,4 +1,6 @@
 pub mod balance;
+pub mod backend_registry;
+pub mod backend_runtime;
 pub mod codex_oauth_models;
 pub mod coding_plan;
 pub mod config;
@@ -29,6 +31,8 @@ pub mod webdav;
 pub mod webdav_auto_sync;
 pub mod webdav_sync;
 
+pub use backend_registry::BackendRegistry;
+pub use backend_runtime::{BackendKind, BackendLogLine, BackendStatus, ManagedBackend};
 pub use config::ConfigService;
 pub use mcp::McpService;
 pub use omo::OmoService;

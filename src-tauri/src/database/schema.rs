@@ -431,6 +431,11 @@ impl Database {
                         Self::migrate_v9_to_v10(conn)?;
                         Self::set_user_version(conn, 10)?;
                     }
+                    10 => {
+                        log::info!("Migrate v10 to v11 (managed_backends)");
+                        Self::migrate_v10_to_v11(conn)?;
+                        Self::set_user_version(conn, 11)?;
+                    }
                     _ => {
                         return Err(AppError::Database(format!(
                             "未知的数据库版本 {version}，无法迁移到 {SCHEMA_VERSION}"
@@ -1079,7 +1084,15 @@ impl Database {
             .map_err(|e| AppError::Database(e.to_string()))?;
         }
 
-        log::info!("v5 -> v6 迁移完成：已添加使用量日聚合表，统一 copilot 模板类型");
+   
+        // 11. Managed Backends 表（v3.11.0+）
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS managed_backends (id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'custom', enabled BOOLEAN NOT NULL DEFAULT 1, managed BOOLEAN NOT NULL DEFAULT 1, start_command TEXT NOT NULL, start_args TEXT, working_dir TEXT, host TEXT NOT NULL DEFAULT '127.0.0.1', port INTEGER NOT NULL, health_path TEXT NOT NULL DEFAULT '/health', env_json TEXT, auto_restart BOOLEAN NOT NULL DEFAULT 1, startup_timeout_ms INTEGER NOT NULL DEFAULT 10000, status TEXT NOT NULL DEFAULT 'stopped', pid INTEGER, last_error TEXT, created_at INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL DEFAULT 0)",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
+     log::info!("v5 -> v6 迁移完成：已添加使用量日聚合表，统一 copilot 模板类型");
         Ok(())
     }
 
@@ -2200,4 +2213,6 @@ impl Database {
         log::info!("已为表 {table} 添加缺失列 {column}");
         Ok(true)
     }
+
+    fn migrate_v10_to_v11(_conn: &Connection) -> Result<(), AppError> { Ok(()) }
 }

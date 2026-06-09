@@ -1434,6 +1434,16 @@ pub fn run() {
             commands::enter_lightweight_mode,
             commands::exit_lightweight_mode,
             commands::is_lightweight_mode,
+            // Managed Backends
+            commands::list_backends,
+            commands::get_backend,
+            commands::create_backend,
+            commands::update_backend,
+            commands::delete_backend,
+            commands::start_backend,
+            commands::stop_backend,
+            commands::restart_backend,
+            commands::get_backend_logs,
         ]);
 
     let app = builder
