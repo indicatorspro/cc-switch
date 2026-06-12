@@ -11,11 +11,12 @@ pub struct ManagedBackend {
     pub enabled: bool,
     pub managed: bool,
     pub start_command: String,
-    pub start_args: Option<Vec<String>>,
+    pub start_args: Option<String>,
     pub working_dir: Option<String>,
     pub host: String,
     pub port: u16,
     pub health_path: String,
+    pub api_key: Option<String>,
     pub env_json: Option<String>,
     pub auto_restart: bool,
     pub startup_timeout_ms: u64,
@@ -27,6 +28,7 @@ pub struct ManagedBackend {
 }
 
 fn row_to_backend(row: &rusqlite::Row) -> Result<ManagedBackend, rusqlite::Error> {
+    let port: i64 = row.get(9)?;
     Ok(ManagedBackend {
         id: row.get(0)?,
         name: row.get(1)?,
@@ -37,16 +39,17 @@ fn row_to_backend(row: &rusqlite::Row) -> Result<ManagedBackend, rusqlite::Error
         start_args: row.get(6)?,
         working_dir: row.get(7)?,
         host: row.get(8)?,
-        port: row.get(9)?,
+        port: port.clamp(0, u16::MAX as i64) as u16,
         health_path: row.get(10)?,
-        env_json: row.get(11)?,
-        auto_restart: row.get(12)?,
-        startup_timeout_ms: row.get(13)?,
-        status: row.get(14)?,
-        pid: row.get(15)?,
-        last_error: row.get(16)?,
-        created_at: row.get(17)?,
-        updated_at: row.get(18)?,
+        api_key: row.get(11)?,
+        env_json: row.get(12)?,
+        auto_restart: row.get(13)?,
+        startup_timeout_ms: row.get(14)?,
+        status: row.get(15)?,
+        pid: row.get(16)?,
+        last_error: row.get(17)?,
+        created_at: row.get(18)?,
+        updated_at: row.get(19)?,
     })
 }
 
@@ -54,7 +57,7 @@ impl Database {
     pub fn get_all_backends(&self) -> Result<Vec<ManagedBackend>, AppError> {
         let conn = lock_conn!(self.conn);
         let mut stmt = conn.prepare(
-            "SELECT id, name, kind, enabled, managed, start_command, start_args, working_dir, host, port, health_path, env_json, auto_restart, startup_timeout_ms, status, pid, last_error, created_at, updated_at FROM managed_backends ORDER BY name"
+            "SELECT id, name, kind, enabled, managed, start_command, start_args, working_dir, host, port, health_path, api_key, env_json, auto_restart, startup_timeout_ms, status, pid, last_error, created_at, updated_at FROM managed_backends ORDER BY name"
         )?;
         let rows = stmt.query_map([], row_to_backend)?;
         rows.collect::<Result<Vec<_>, _>>().map_err(|e| AppError::Database(e.to_string()))
@@ -63,7 +66,7 @@ impl Database {
     pub fn get_backend(&self, id: &str) -> Result<ManagedBackend, AppError> {
         let conn = lock_conn!(self.conn);
         let mut stmt = conn.prepare(
-            "SELECT id, name, kind, enabled, managed, start_command, start_args, working_dir, host, port, health_path, env_json, auto_restart, startup_timeout_ms, status, pid, last_error, created_at, updated_at FROM managed_backends WHERE id = ?"
+            "SELECT id, name, kind, enabled, managed, start_command, start_args, working_dir, host, port, health_path, api_key, env_json, auto_restart, startup_timeout_ms, status, pid, last_error, created_at, updated_at FROM managed_backends WHERE id = ?"
         )?;
         stmt.query_row([id], row_to_backend)
             .map_err(|e| AppError::Database(e.to_string()))
@@ -79,6 +82,7 @@ impl Database {
         host: &str,
         port: u16,
         health_path: &str,
+        api_key: Option<&str>,
         env_json: Option<&serde_json::Value>,
         auto_restart: bool,
         startup_timeout_ms: u64,
@@ -88,17 +92,17 @@ impl Database {
         let ej = env_json.map(|v| serde_json::to_string(v).unwrap_or_default());
         let conn = lock_conn!(self.conn);
         conn.execute(
-            "INSERT INTO managed_backends (id,name,kind,start_command,start_args,working_dir,host,port,health_path,env_json,auto_restart,startup_timeout_ms,created_at,updated_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,strftime('%s','now'),strftime('%s','now'))",
-            rusqlite::params![id, name, kind, start_command, sa, working_dir, host, port, health_path, ej, auto_restart, startup_timeout_ms],
+            "INSERT INTO managed_backends (id,name,kind,start_command,start_args,working_dir,host,port,health_path,api_key,env_json,auto_restart,startup_timeout_ms,created_at,updated_at) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,strftime('%s','now'),strftime('%s','now'))",
+            rusqlite::params![id, name, kind, start_command, sa, working_dir, host, port, health_path, api_key, ej, auto_restart, startup_timeout_ms],
         )?;
         Ok(id)
     }
 
 
     pub fn update_backend(
-        &self, id: &str, name: Option<&str>, start_command: Option<&str>, start_args: Option<&Vec<String>>, working_dir: Option<&str>, host: Option<&str>, port: Option<u16>, health_path: Option<&str>, env_json: Option<&serde_json::Value>, auto_restart: Option<bool>, startup_timeout_ms: Option<u64>, enabled: Option<bool>) -> Result<(), AppError> {
+        &self, id: &str, name: Option<&str>, start_command: Option<&str>, start_args: Option<&Vec<String>>, working_dir: Option<&str>, host: Option<&str>, port: Option<u16>, health_path: Option<&str>, api_key: Option<&str>, env_json: Option<&serde_json::Value>, auto_restart: Option<bool>, startup_timeout_ms: Option<u64>, enabled: Option<bool>) -> Result<(), AppError> {
         let conn = lock_conn!(self.conn);
-        let mut sets: Vec<String> = Vec::new();
+        let mut sets: Vec<&str> = Vec::new();
         let mut vals: Vec<String> = Vec::new();
         if let Some(v) = name { sets.push("name=?"); vals.push(v.to_string()); }
         if let Some(v) = start_command { sets.push("start_command=?"); vals.push(v.to_string()); }
@@ -107,10 +111,11 @@ impl Database {
         if let Some(v) = host { sets.push("host=?"); vals.push(v.to_string()); }
         if let Some(v) = port { sets.push("port=?"); vals.push(v.to_string()); }
         if let Some(v) = health_path { sets.push("health_path=?"); vals.push(v.to_string()); }
+        if let Some(v) = api_key { sets.push("api_key=?"); vals.push(v.to_string()); }
         if let Some(v) = env_json { sets.push("env_json=?"); vals.push(serde_json::to_string(v).unwrap_or_default()); }
-        if let Some(v) = auto_restart { sets.push("auto_restart=?"); vals.push(v.to_string()); }
+        if let Some(v) = auto_restart { sets.push("auto_restart=?"); vals.push(if v { "1" } else { "0" }.to_string()); }
         if let Some(v) = startup_timeout_ms { sets.push("startup_timeout_ms=?"); vals.push(v.to_string()); }
-        if let Some(v) = enabled { sets.push("enabled=?"); vals.push(v.to_string()); }
+        if let Some(v) = enabled { sets.push("enabled=?"); vals.push(if v { "1" } else { "0" }.to_string()); }
         sets.push("updated_at=strftime('%s','now')");
         if sets.is_empty() { return Ok(()); }
         let sql = format!("UPDATE managed_backends SET {} WHERE id=?", sets.join(","));

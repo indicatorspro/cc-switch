@@ -26,6 +26,7 @@ import {
   Shield,
   Cpu,
   LayoutDashboard,
+  Server,
 } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Provider, VisibleApps } from "@/types";
@@ -90,6 +91,7 @@ import ToolsPanel from "@/components/openclaw/ToolsPanel";
 import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
+import { ExternalProxiesPage } from "@/components/external-proxies/ExternalProxiesPage";
 
 type View =
   | "providers"
@@ -105,7 +107,8 @@ type View =
   | "openclawEnv"
   | "openclawTools"
   | "openclawAgents"
-  | "hermesMemory";
+  | "hermesMemory"
+  | "externalProxies";
 
 interface SyncStatusUpdatedPayload {
   source?: string;
@@ -151,6 +154,7 @@ const VALID_VIEWS: View[] = [
   "openclawTools",
   "openclawAgents",
   "hermesMemory",
+  "externalProxies",
 ];
 
 const getInitialView = (): View => {
@@ -880,6 +884,8 @@ function App() {
           );
         case "hermesMemory":
           return <HermesMemoryPanel />;
+        case "externalProxies":
+          return <ExternalProxiesPage />;
         case "skills":
           return (
             <UnifiedSkillsPanel
@@ -1154,6 +1160,7 @@ function App() {
                   {currentView === "openclawAgents" &&
                     t("openclaw.agents.title")}
                   {currentView === "hermesMemory" && t("hermes.memory.title")}
+                  {currentView === "externalProxies" && "External Proxies"}
                 </h1>
               </div>
             ) : (
@@ -1173,6 +1180,15 @@ function App() {
                     CC Switch
                   </a>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCurrentView("externalProxies")}
+                  title="External Proxies"
+                  className="hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  <Server className="w-4 h-4" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"

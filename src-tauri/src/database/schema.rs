@@ -287,6 +287,35 @@ impl Database {
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
 
+        // 19. Managed Backends / External Proxies 表
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS managed_backends (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                kind TEXT NOT NULL DEFAULT 'custom',
+                enabled BOOLEAN NOT NULL DEFAULT 1,
+                managed BOOLEAN NOT NULL DEFAULT 1,
+                start_command TEXT NOT NULL,
+                start_args TEXT,
+                working_dir TEXT,
+                host TEXT NOT NULL DEFAULT '127.0.0.1',
+                port INTEGER NOT NULL DEFAULT 0,
+                health_path TEXT NOT NULL DEFAULT '',
+                api_key TEXT,
+                env_json TEXT,
+                auto_restart BOOLEAN NOT NULL DEFAULT 0,
+                startup_timeout_ms INTEGER NOT NULL DEFAULT 10000,
+                status TEXT NOT NULL DEFAULT 'stopped',
+                pid INTEGER,
+                last_error TEXT,
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+                updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+        Self::add_column_if_missing(conn, "managed_backends", "api_key", "TEXT")?;
+
         // 尝试添加 live_takeover_active 列到 proxy_config 表
         let _ = conn.execute(
             "ALTER TABLE proxy_config ADD COLUMN live_takeover_active INTEGER NOT NULL DEFAULT 0",
@@ -435,6 +464,11 @@ impl Database {
                         log::info!("Migrate v10 to v11 (managed_backends)");
                         Self::migrate_v10_to_v11(conn)?;
                         Self::set_user_version(conn, 11)?;
+                    }
+                    11 => {
+                        log::info!("Migrate v11 to v12 (managed backend api key)");
+                        Self::migrate_v11_to_v12(conn)?;
+                        Self::set_user_version(conn, 12)?;
                     }
                     _ => {
                         return Err(AppError::Database(format!(
@@ -2214,5 +2248,38 @@ impl Database {
         Ok(true)
     }
 
-    fn migrate_v10_to_v11(_conn: &Connection) -> Result<(), AppError> { Ok(()) }
+    fn migrate_v10_to_v11(conn: &Connection) -> Result<(), AppError> {
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS managed_backends (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                kind TEXT NOT NULL DEFAULT 'custom',
+                enabled BOOLEAN NOT NULL DEFAULT 1,
+                managed BOOLEAN NOT NULL DEFAULT 1,
+                start_command TEXT NOT NULL,
+                start_args TEXT,
+                working_dir TEXT,
+                host TEXT NOT NULL DEFAULT '127.0.0.1',
+                port INTEGER NOT NULL DEFAULT 0,
+                health_path TEXT NOT NULL DEFAULT '',
+                api_key TEXT,
+                env_json TEXT,
+                auto_restart BOOLEAN NOT NULL DEFAULT 0,
+                startup_timeout_ms INTEGER NOT NULL DEFAULT 10000,
+                status TEXT NOT NULL DEFAULT 'stopped',
+                pid INTEGER,
+                last_error TEXT,
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
+                updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(format!("创建 managed_backends 表失败: {e}")))?;
+        Ok(())
+    }
+
+    fn migrate_v11_to_v12(conn: &Connection) -> Result<(), AppError> {
+        Self::add_column_if_missing(conn, "managed_backends", "api_key", "TEXT")?;
+        Ok(())
+    }
 }

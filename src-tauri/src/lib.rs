@@ -1444,6 +1444,11 @@ pub fn run() {
             commands::stop_backend,
             commands::restart_backend,
             commands::get_backend_logs,
+            commands::send_backend_input,
+            commands::check_backend_health,
+            commands::list_backend_models,
+            commands::read_backend_env_file,
+            commands::write_backend_env_file,
         ]);
 
     let app = builder
@@ -1587,6 +1592,10 @@ pub fn run() {
 /// 使用 stop_with_restore_keep_state 保留 settings 表中的代理状态，下次启动时自动恢复。
 pub async fn cleanup_before_exit(app_handle: &tauri::AppHandle) {
     if let Some(state) = app_handle.try_state::<store::AppState>() {
+        let backend_registry =
+            crate::services::backend_registry::BackendRegistry::get_or_init(state.db.clone());
+        backend_registry.stop_all().await;
+
         let proxy_service = &state.proxy_service;
 
         // 退出时也需要兜底：代理可能已崩溃/未运行，但 Live 接管残留仍在（占位符/备份）。

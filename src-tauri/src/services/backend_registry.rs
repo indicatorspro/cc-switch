@@ -1,5 +1,5 @@
 use crate::database::Database;
-use crate::services::backend_runtime::{BackendKind, ManagedBackend};
+use crate::services::backend_runtime::{BackendKind, BackendStatus, ManagedBackend};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -35,17 +35,26 @@ impl BackendRegistry {
 
         // Load from database
         let backend_row = self.db.get_backend(id)?;
+        let start_args = backend_row
+            .start_args
+            .as_deref()
+            .and_then(|value| serde_json::from_str::<Vec<String>>(value).ok());
+        let env_json = backend_row
+            .env_json
+            .as_deref()
+            .and_then(|value| serde_json::from_str::<serde_json::Value>(value).ok());
         let managed = Arc::new(ManagedBackend::new(
             backend_row.id,
             backend_row.name,
             BackendKind::from_str(&backend_row.kind)?,
             backend_row.start_command,
-            backend_row.start_args,
+            start_args,
             backend_row.working_dir,
             backend_row.host,
             backend_row.port,
             backend_row.health_path,
-            backend_row.env_json,
+            backend_row.api_key,
+            env_json,
             backend_row.auto_restart,
             backend_row.startup_timeout_ms,
         ));
@@ -67,6 +76,42 @@ impl BackendRegistry {
     pub async fn get_logs(&self, id: &str) -> Result<Vec<String>, String> {
         let backend = self.get_or_create(id).await?;
         Ok(backend.logs().await)
+    }
+
+    pub async fn send_input(&self, id: &str, input: &str) -> Result<(), String> {
+        let backend = self.get_or_create(id).await?;
+        backend.send_input(input).await
+    }
+
+    pub async fn record_health_result(
+        &self,
+        id: &str,
+        ok: bool,
+        message: Option<String>,
+    ) -> Result<(), String> {
+        let backend = self.get_or_create(id).await?;
+        backend.set_health_result(ok, message).await;
+        Ok(())
+    }
+
+    pub async fn forget(&self, id: &str) {
+        self.backends.write().await.remove(id);
+    }
+
+    pub async fn runtime_state(
+        &self,
+        id: &str,
+    ) -> Option<(BackendStatus, Option<u32>, Option<String>)> {
+        let backend = {
+            let map = self.backends.read().await;
+            map.get(id).cloned()
+        }?;
+
+        Some((
+            backend.status().await,
+            backend.pid().await,
+            backend.last_error().await,
+        ))
     }
 
     pub async fn stop_all(&self) {
