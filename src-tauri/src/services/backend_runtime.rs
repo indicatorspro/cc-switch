@@ -212,6 +212,12 @@ impl ManagedBackend {
             if let Some(args) = &self.start_args {
                 command.args(args);
             }
+            #[cfg(target_os = "windows")]
+            {
+                use std::os::windows::process::CommandExt;
+                const CREATE_NO_WINDOW: u32 = 0x08000000;
+                command.creation_flags(CREATE_NO_WINDOW);
+            }
             command
         } else {
             shell_command(&self.start_command)
@@ -569,8 +575,11 @@ impl Drop for WindowsProcessJob {
 fn shell_command(command: &str) -> Command {
     #[cfg(target_os = "windows")]
     {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
         let mut cmd = Command::new("cmd");
         cmd.args(["/C", command]);
+        cmd.creation_flags(CREATE_NO_WINDOW);
         cmd
     }
 
