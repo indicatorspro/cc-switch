@@ -17,6 +17,42 @@ English | [中文](README_ZH.md) | [日本語](README_JA.md) | [Deutsch](README_
 
 </div>
 
+---
+
+## 📌 Custom Build (indicadorespro Fork)
+
+This is a **custom fork** of [farion1231/cc-switch](https://github.com/farion1231/cc-switch) with additional features and fixes.
+
+### What's New in This Fork
+
+- **Managed Backends** — Start, stop, and manage local proxy processes (e.g. deepsproxy, qwenproxy) directly from the CC Switch interface, with auto-restart, health checks, and log viewing
+- **Backend API Key Support** — Store and use API keys for managed backends
+- **Database Schema v13** — Added missing `pricing_model` and `request_model` columns to fix usage tracking errors after upstream merge
+- **Full upstream sync** — Includes all official updates up to the latest upstream version (proxy fixes, updater improvements, new models, Unity2.ai provider, usage pricing refresh)
+
+### Download
+
+Pre-built installers for Windows are available in the [Releases](https://github.com/indicatorspro/cc-switch/releases) page of this fork:
+
+- **MSI Installer**: [CC Switch_3.16.2_x64_en-US.msi](https://github.com/indicatorspro/cc-switch/releases/latest)
+- **EXE Installer (NSIS)**: [CC Switch_3.16.2_x64-setup.exe](https://github.com/indicatorspro/cc-switch/releases/latest)
+
+> **Note**: If the releases page shows no assets yet, the installers need to be uploaded manually from the build output at `src-tauri\target\release\bundle\`.
+
+### Building from Source
+
+```powershell
+cd C:\GitHub\cc-switch
+pnpm install
+pnpm tauri build
+```
+
+The compiled installers will be at:
+- `src-tauri\target\release\bundle\msi\CC Switch_3.16.2_x64_en-US.msi`
+- `src-tauri\target\release\bundle\nsis\CC Switch_3.16.2_x64-setup.exe`
+
+---
+
 ## ❤️Sponsor
 
 > [Want to appear here?](mailto:farion1231@gmail.com)
