@@ -34,10 +34,8 @@ This is a **custom fork** of [farion1231/cc-switch](https://github.com/farion123
 
 Pre-built installers for Windows are available in the [Releases](https://github.com/indicatorspro/cc-switch/releases) page of this fork:
 
-- **MSI Installer**: [CC Switch_3.16.2_x64_en-US.msi](https://github.com/indicatorspro/cc-switch/releases/latest)
-- **EXE Installer (NSIS)**: [CC Switch_3.16.2_x64-setup.exe](https://github.com/indicatorspro/cc-switch/releases/latest)
-
-> **Note**: If the releases page shows no assets yet, the installers need to be uploaded manually from the build output at `src-tauri\target\release\bundle\`.
+- **MSI Installer**: [CC Switch_3.16.2_x64_en-US.msi](https://github.com/indicatorspro/cc-switch/releases/download/custom-v3.16.2/CC.Switch_3.16.2_x64_en-US.msi) (14.3 MB)
+- **EXE Installer (NSIS)**: [CC Switch_3.16.2_x64-setup.exe](https://github.com/indicatorspro/cc-switch/releases/download/custom-v3.16.2/CC.Switch_3.16.2_x64-setup.exe) (11.2 MB)
 
 ### Building from Source
 
