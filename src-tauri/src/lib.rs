@@ -1286,6 +1286,7 @@ pub fn run() {
             commands::start_proxy_server,
             commands::stop_proxy_server,
             commands::stop_proxy_with_restore,
+            commands::force_stop_proxy_server,
             commands::get_proxy_takeover_status,
             commands::set_proxy_takeover_for_app,
             commands::get_proxy_status,

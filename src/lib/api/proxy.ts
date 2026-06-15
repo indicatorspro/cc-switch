@@ -21,6 +21,11 @@ export const proxyApi = {
     return invoke("stop_proxy_with_restore");
   },
 
+  // 强制终止代理服务器（适用于代理卡死/端口占用的场景）
+  async forceStopProxyServer(): Promise<void> {
+    return invoke("force_stop_proxy_server");
+  },
+
   // 获取代理服务器状态
   async getProxyStatus(): Promise<ProxyStatus> {
     return invoke("get_proxy_status");

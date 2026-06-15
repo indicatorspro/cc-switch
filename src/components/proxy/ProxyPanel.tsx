@@ -9,6 +9,7 @@ import {
   Loader2,
   Zap,
   Power,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -45,7 +46,7 @@ export function ProxyPanel({
   isProxyPending,
 }: ProxyPanelProps) {
   const { t } = useTranslation();
-  const { status, isRunning } = useProxyStatus();
+  const { status, isRunning, forceStop, isForceStopping } = useProxyStatus();
 
   // 获取应用接管状态
   const { data: takeoverStatus } = useProxyTakeoverStatus();
@@ -249,11 +250,43 @@ export function ProxyPanel({
               </p>
             </div>
           </div>
-          <Switch
-            checked={isRunning}
-            onCheckedChange={onToggleProxy}
-            disabled={isProxyPending}
-          />
+          <div className="flex items-center gap-2">
+            {isRunning && (
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-7 px-2 text-xs"
+                disabled={isForceStopping}
+                onClick={async () => {
+                  try {
+                    await forceStop();
+                  } catch (error) {
+                    console.error("[ProxyPanel] Force stop failed:", error);
+                  }
+                }}
+                title={t("proxy.panel.forceStop", {
+                  defaultValue:
+                    "强制终止代理服务（当代理卡死或无法正常关闭时使用）",
+                })}
+              >
+                {isForceStopping ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3 w-3" />
+                )}
+                <span className="ml-1 hidden sm:inline">
+                  {t("proxy.panel.forceStopButton", {
+                    defaultValue: "强制终止",
+                  })}
+                </span>
+              </Button>
+            )}
+            <Switch
+              checked={isRunning}
+              onCheckedChange={onToggleProxy}
+              disabled={isProxyPending}
+            />
+          </div>
         </div>
 
         {/* [3] App takeover switches — animated, visible only when proxy is running */}

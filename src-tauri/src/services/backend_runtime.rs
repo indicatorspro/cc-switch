@@ -208,17 +208,33 @@ impl ManagedBackend {
             .map(|args| !args.is_empty())
             .unwrap_or(false)
         {
-            let mut command = Command::new(&self.start_command);
-            if let Some(args) = &self.start_args {
-                command.args(args);
+            // Resolve the executable path to handle junction points / symlinks
+            // (e.g. uv's Python installation uses junctions that Command::new can't traverse)
+            match std::fs::canonicalize(&self.start_command) {
+                Ok(resolved) => {
+                    let mut command = Command::new(&resolved);
+                    if let Some(args) = &self.start_args {
+                        command.args(args);
+                    }
+                    #[cfg(target_os = "windows")]
+                    {
+                        use std::os::windows::process::CommandExt;
+                        const CREATE_NO_WINDOW: u32 = 0x08000000;
+                        command.creation_flags(CREATE_NO_WINDOW);
+                    }
+                    command
+                }
+                Err(_) => {
+                    // canonicalize failed (broken junction, missing file, etc.)
+                    // Fall back to cmd /C which can resolve junction points natively
+                    // and also handles paths that contain non-reparseable mount points
+                    self.log(format!(
+                        "Warning: could not resolve path '{}', falling back to cmd /C",
+                        self.start_command
+                    )).await;
+                    shell_command(&self.start_command)
+                }
             }
-            #[cfg(target_os = "windows")]
-            {
-                use std::os::windows::process::CommandExt;
-                const CREATE_NO_WINDOW: u32 = 0x08000000;
-                command.creation_flags(CREATE_NO_WINDOW);
-            }
-            command
         } else {
             shell_command(&self.start_command)
         };
@@ -229,7 +245,10 @@ impl ManagedBackend {
             .kill_on_drop(true);
 
         if let Some(wd) = &self.working_dir {
-            cmd.current_dir(wd);
+            // Also resolve working_dir to handle junction points / symlinks
+            let resolved_wd = std::fs::canonicalize(wd)
+                .unwrap_or_else(|_| std::path::PathBuf::from(wd));
+            cmd.current_dir(&resolved_wd);
         }
 
         // Merge environment variables

@@ -1072,6 +1072,57 @@ impl ProxyService {
         }
     }
 
+    /// 强制终止代理服务器（适用于 stop() 超时或服务器卡死的场景）
+    ///
+    /// 无论服务器处于什么状态，都会尝试强制释放端口：
+    /// 1. 如果 ProxyServer 实例仍在 → 调用 force_stop() 终止 tokio 任务
+    /// 2. 如果实例已不在 → 通过端口号查找并终止占用端口的进程
+    pub async fn force_stop(&self) -> Result<(), String> {
+        log::warn!("正在强制终止代理服务器...");
+
+        // 1. 如果 ProxyServer 实例仍在，先尝试强制终止
+        let maybe_server = self.server.write().await.take();
+        if let Some(server) = maybe_server {
+            if let Err(e) = server.force_stop().await {
+                log::warn!("ProxyServer::force_stop 失败: {e}");
+            }
+        }
+
+        // 2. 如果端口仍被占用（例如 stop() 超时后实例已被 take 出去），
+        //    通过查找并终止占用端口的进程来释放端口
+        let port = self.get_configured_port().await;
+        if let Some(port) = port {
+            if let Err(e) = kill_process_on_port(port).await {
+                log::warn!("终止占用端口 {port} 的进程失败: {e}");
+            } else {
+                log::info!("已终止占用端口 {port} 的进程");
+            }
+        }
+
+        // 3. 清除全局代理状态
+        if let Ok(mut global_config) = self.db.get_global_proxy_config().await {
+            if global_config.proxy_enabled {
+                global_config.proxy_enabled = false;
+                if let Err(e) = self.db.update_global_proxy_config(global_config).await {
+                    log::warn!("更新代理总开关失败: {e}");
+                }
+            }
+        }
+
+        log::info!("代理服务器已强制终止");
+        Ok(())
+    }
+
+    /// 获取当前配置的代理端口
+    async fn get_configured_port(&self) -> Option<u16> {
+        if let Ok(global_config) = self.db.get_global_proxy_config().await {
+            if global_config.listen_port > 0 {
+                return Some(global_config.listen_port as u16);
+            }
+        }
+        None
+    }
+
     /// 停止代理服务器（恢复 Live 配置，用户手动关闭时使用）
     ///
     /// 会清除 settings 表中的代理状态，下次启动不会自动恢复。
@@ -2685,6 +2736,61 @@ impl ProxyService {
             log::info!("已重置 Provider {provider_id} (app: {app_type}) 的熔断器");
         }
         Ok(())
+    }
+}
+
+/// 通过端口号查找并终止占用该端口的进程（Windows 专用）
+///
+/// 使用 `netstat` 查找监听指定端口的 PID，然后通过 `taskkill /F /PID` 强制终止。
+async fn kill_process_on_port(port: u16) -> Result<(), String> {
+    use tokio::process::Command;
+
+    // 1. 通过 netstat 查找占用端口的 PID
+    let output = Command::new("netstat")
+        .args(["-ano", "-p", "TCP"])
+        .output()
+        .await
+        .map_err(|e| format!("执行 netstat 失败: {e}"))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let port_str = format!(":{port}");
+
+    // 查找类似 "TCP    0.0.0.0:3000    0.0.0.0:0    LISTENING    12345" 的行
+    let target_pid = stdout
+        .lines()
+        .find(|line| line.contains(&port_str) && line.contains("LISTENING"))
+        .and_then(|line| {
+            line.split_whitespace().last()
+        })
+        .and_then(|pid_str| pid_str.parse::<u32>().ok());
+
+    match target_pid {
+        Some(pid) => {
+            log::info!("找到占用端口 {port} 的进程 PID: {pid}，正在终止...");
+
+            let result = Command::new("taskkill")
+                .args(["/F", "/PID", &pid.to_string()])
+                .output()
+                .await
+                .map_err(|e| format!("执行 taskkill 失败: {e}"))?;
+
+            if result.status.success() {
+                log::info!("已成功终止进程 PID: {pid}");
+                Ok(())
+            } else {
+                let stderr = String::from_utf8_lossy(&result.stderr);
+                if stderr.contains("not found") || stderr.contains("nao encontrado") {
+                    log::warn!("进程 PID {pid} 已不存在");
+                    Ok(()) // 进程已退出，端口已释放
+                } else {
+                    Err(format!("终止进程 PID {pid} 失败: {stderr}"))
+                }
+            }
+        }
+        None => {
+            log::info!("未找到占用端口 {port} 的进程（端口可能已释放）");
+            Ok(())
+        }
     }
 }
 
