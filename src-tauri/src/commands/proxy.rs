@@ -39,17 +39,6 @@ pub async fn stop_proxy_with_restore(state: tauri::State<'_, AppState>) -> Resul
     state.proxy_service.stop_with_restore().await
 }
 
-/// 强制终止代理服务器
-///
-/// 适用于代理卡死/端口占用的场景：
-/// 1. 强制终止 tokio 任务
-/// 2. 如果端口仍被占用，通过 netstat + taskkill 释放端口
-/// 3. 清除全局代理状态
-#[tauri::command]
-pub async fn force_stop_proxy_server(state: tauri::State<'_, AppState>) -> Result<(), String> {
-    state.proxy_service.force_stop().await
-}
-
 /// 获取各应用接管状态
 #[tauri::command]
 pub async fn get_proxy_takeover_status(

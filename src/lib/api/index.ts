@@ -9,16 +9,16 @@ export { usageApi } from "./usage";
 export { subscriptionApi } from "./subscription";
 export { vscodeApi } from "./vscode";
 export { proxyApi } from "./proxy";
-export { backendsApi } from "./backends";
 export { openclawApi } from "./openclaw";
 export { sessionsApi } from "./sessions";
 export { workspaceApi } from "./workspace";
+export { backendsApi } from "./backends";
+export type { BackendRequest, ManagedBackend } from "./backends";
 export * as configApi from "./config";
 export * as authApi from "./auth";
 export * as copilotApi from "./copilot";
 export type { ProviderSwitchEvent } from "./providers";
 export type { Prompt } from "./prompts";
-export type { ManagedBackend, BackendStatus, BackendRequest } from "./backends";
 export type {
   CopilotDeviceCodeResponse,
   CopilotAuthStatus,

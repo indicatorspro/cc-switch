@@ -120,34 +120,6 @@ export function useProxyStatus() {
     },
   });
 
-  // 强制终止代理服务器（适用于代理卡死/端口占用的场景）
-  const forceStopMutation = useMutation({
-    mutationFn: () => invoke("force_stop_proxy_server"),
-    onSuccess: () => {
-      toast.success(
-        t("proxy.forceStopped", {
-          defaultValue: "代理服务已强制终止，端口已释放",
-        }),
-        { closeButton: true },
-      );
-      queryClient.invalidateQueries({ queryKey: ["proxyStatus"] });
-      queryClient.invalidateQueries({ queryKey: ["proxyTakeoverStatus"] });
-      queryClient.removeQueries({ queryKey: ["providerHealth"] });
-      queryClient.removeQueries({ queryKey: ["circuitBreakerStats"] });
-    },
-    onError: (error: Error) => {
-      const detail =
-        extractErrorMessage(error) ||
-        t("common.unknown", { defaultValue: "未知错误" });
-      toast.error(
-        t("proxy.forceStopFailed", {
-          detail,
-          defaultValue: `强制终止失败: ${detail}`,
-        }),
-      );
-    },
-  });
-
   // 按应用开启/关闭接管
   const setTakeoverForAppMutation = useMutation({
     mutationFn: ({ appType, enabled }: { appType: string; enabled: boolean }) =>
@@ -249,7 +221,6 @@ export function useProxyStatus() {
     startProxyServer: startProxyServerMutation.mutateAsync,
     stopProxyServer: stopProxyServerMutation.mutateAsync,
     stopWithRestore: stopWithRestoreMutation.mutateAsync,
-    forceStop: forceStopMutation.mutateAsync,
 
     // 按应用接管开关
     setTakeoverForApp: setTakeoverForAppMutation.mutateAsync,
@@ -265,12 +236,10 @@ export function useProxyStatus() {
     isStarting: startProxyServerMutation.isPending,
     isStoppingServer: stopProxyServerMutation.isPending,
     isStopping: stopWithRestoreMutation.isPending,
-    isForceStopping: forceStopMutation.isPending,
     isPending:
       startProxyServerMutation.isPending ||
       stopProxyServerMutation.isPending ||
       stopWithRestoreMutation.isPending ||
-      forceStopMutation.isPending ||
       setTakeoverForAppMutation.isPending,
   };
 }

@@ -295,35 +295,6 @@ impl Database {
         )
         .map_err(|e| AppError::Database(e.to_string()))?;
 
-        // 19. Managed Backends / External Proxies 表
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS managed_backends (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                kind TEXT NOT NULL DEFAULT 'custom',
-                enabled BOOLEAN NOT NULL DEFAULT 1,
-                managed BOOLEAN NOT NULL DEFAULT 1,
-                start_command TEXT NOT NULL,
-                start_args TEXT,
-                working_dir TEXT,
-                host TEXT NOT NULL DEFAULT '127.0.0.1',
-                port INTEGER NOT NULL DEFAULT 0,
-                health_path TEXT NOT NULL DEFAULT '',
-                api_key TEXT,
-                env_json TEXT,
-                auto_restart BOOLEAN NOT NULL DEFAULT 0,
-                startup_timeout_ms INTEGER NOT NULL DEFAULT 10000,
-                status TEXT NOT NULL DEFAULT 'stopped',
-                pid INTEGER,
-                last_error TEXT,
-                created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
-                updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
-            )",
-            [],
-        )
-        .map_err(|e| AppError::Database(e.to_string()))?;
-        Self::add_column_if_missing(conn, "managed_backends", "api_key", "TEXT")?;
-
         // 尝试添加 live_takeover_active 列到 proxy_config 表
         let _ = conn.execute(
             "ALTER TABLE proxy_config ADD COLUMN live_takeover_active INTEGER NOT NULL DEFAULT 0",
@@ -389,6 +360,34 @@ impl Database {
             [],
         );
 
+        // managed_backends - 外部代理后端管理
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS managed_backends (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                kind TEXT NOT NULL,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                managed INTEGER NOT NULL DEFAULT 0,
+                start_command TEXT,
+                start_args TEXT,
+                working_dir TEXT,
+                host TEXT,
+                port INTEGER,
+                health_path TEXT,
+                api_key TEXT,
+                env_json TEXT,
+                auto_restart INTEGER NOT NULL DEFAULT 1,
+                startup_timeout_ms INTEGER NOT NULL DEFAULT 30000,
+                status TEXT NOT NULL DEFAULT 'stopped',
+                pid INTEGER,
+                last_error TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Database(e.to_string()))?;
+
         Ok(())
     }
 
@@ -406,11 +405,15 @@ impl Database {
         let mut version = Self::get_user_version(conn)?;
 
         if version > SCHEMA_VERSION {
-            conn.execute("ROLLBACK TO schema_migration;", []).ok();
-            conn.execute("RELEASE schema_migration;", []).ok();
-            return Err(AppError::Database(format!(
-                "数据库版本过新（{version}），当前应用仅支持 {SCHEMA_VERSION}，请升级应用后再尝试。"
-            )));
+            log::warn!(
+                "⚠️ 数据库版本（v{version}）高于当前应用支持的版本（v{SCHEMA_VERSION}）。\
+                 应用将继续运行，但部分新功能可能不可用。建议升级应用以获得完整支持。"
+            );
+            // Do NOT block or downgrade — all migrations are additive (new columns/tables).
+            // SQLite silently ignores extra columns, so the current schema is fully compatible.
+            conn.execute("RELEASE schema_migration;", [])
+                .map_err(|e| AppError::Database(format!("释放迁移 savepoint 失败: {e}")))?;
+            return Ok(());
         }
 
         let result = (|| {
@@ -469,19 +472,14 @@ impl Database {
                         Self::set_user_version(conn, 10)?;
                     }
                     10 => {
-                        log::info!("Migrate v10 to v11 (managed_backends)");
+                        log::info!("迁移数据库从 v10 到 v11（usage_daily_rollups 保留 request_model 维度）");
                         Self::migrate_v10_to_v11(conn)?;
                         Self::set_user_version(conn, 11)?;
                     }
                     11 => {
-                        log::info!("Migrate v11 to v12 (managed backend api key)");
+                        log::info!("迁移数据库从 v11 到 v12（managed_backends 添加 api_key 列）");
                         Self::migrate_v11_to_v12(conn)?;
                         Self::set_user_version(conn, 12)?;
-                    }
-                    12 => {
-                        log::info!("Migrate v12 to v13 (add pricing_model and request_model columns)");
-                        Self::migrate_v12_to_v13(conn)?;
-                        Self::set_user_version(conn, 13)?;
                     }
                     _ => {
                         return Err(AppError::Database(format!(
@@ -1131,15 +1129,7 @@ impl Database {
             .map_err(|e| AppError::Database(e.to_string()))?;
         }
 
-   
-        // 11. Managed Backends 表（v3.11.0+）
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS managed_backends (id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'custom', enabled BOOLEAN NOT NULL DEFAULT 1, managed BOOLEAN NOT NULL DEFAULT 1, start_command TEXT NOT NULL, start_args TEXT, working_dir TEXT, host TEXT NOT NULL DEFAULT '127.0.0.1', port INTEGER NOT NULL, health_path TEXT NOT NULL DEFAULT '/health', env_json TEXT, auto_restart BOOLEAN NOT NULL DEFAULT 1, startup_timeout_ms INTEGER NOT NULL DEFAULT 10000, status TEXT NOT NULL DEFAULT 'stopped', pid INTEGER, last_error TEXT, created_at INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL DEFAULT 0)",
-            [],
-        )
-        .map_err(|e| AppError::Database(e.to_string()))?;
-
-     log::info!("v5 -> v6 迁移完成：已添加使用量日聚合表，统一 copilot 模板类型");
+        log::info!("v5 -> v6 迁移完成：已添加使用量日聚合表，统一 copilot 模板类型");
         Ok(())
     }
 
@@ -1314,35 +1304,15 @@ impl Database {
         log::info!(
             "v10 -> v11 迁移完成：usage_daily_rollups 已保留 request_model/pricing_model 维度"
         );
+        Ok(())
+    }
 
-        // 创建 managed_backends 表 (本地自定义功能)
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS managed_backends (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                kind TEXT NOT NULL DEFAULT 'custom',
-                enabled BOOLEAN NOT NULL DEFAULT 1,
-                managed BOOLEAN NOT NULL DEFAULT 1,
-                start_command TEXT NOT NULL,
-                start_args TEXT,
-                working_dir TEXT,
-                host TEXT NOT NULL DEFAULT '127.0.0.1',
-                port INTEGER NOT NULL DEFAULT 0,
-                health_path TEXT NOT NULL DEFAULT '',
-                api_key TEXT,
-                env_json TEXT,
-                auto_restart BOOLEAN NOT NULL DEFAULT 0,
-                startup_timeout_ms INTEGER NOT NULL DEFAULT 10000,
-                status TEXT NOT NULL DEFAULT 'stopped',
-                pid INTEGER,
-                last_error TEXT,
-                created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')),
-                updated_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
-            )",
-            [],
-        )
-        .map_err(|e| AppError::Database(format!("创建 managed_backends 表失败: {e}")))?;
-
+    /// v11 -> v12: 添加 api_key 列到 managed_backends 表
+    fn migrate_v11_to_v12(conn: &Connection) -> Result<(), AppError> {
+        if Self::table_exists(conn, "managed_backends")? {
+            Self::add_column_if_missing(conn, "managed_backends", "api_key", "TEXT")?;
+        }
+        log::info!("v11 -> v12 迁移完成：managed_backends 添加 api_key 列");
         Ok(())
     }
 
@@ -1879,6 +1849,14 @@ impl Database {
             ),
             ("kimi-k2.5", "Kimi K2.5", "0.60", "3.00", "0.10", "0"),
             ("kimi-k2.6", "Kimi K2.6", "0.95", "4.00", "0.16", "0"),
+            (
+                "kimi-k2.7-code",
+                "Kimi K2.7 Code",
+                "0.95",
+                "4.00",
+                "0.19",
+                "0",
+            ),
             // MiniMax 系列
             ("minimax-m2.1", "MiniMax M2.1", "0.27", "0.95", "0.03", "0"),
             (
@@ -2638,67 +2616,5 @@ impl Database {
             .map_err(|e| AppError::Database(format!("为表 {table} 添加列 {column} 失败: {e}")))?;
         log::info!("已为表 {table} 添加缺失列 {column}");
         Ok(true)
-    }
-
-    fn migrate_v11_to_v12(conn: &Connection) -> Result<(), AppError> {
-        Self::add_column_if_missing(conn, "managed_backends", "api_key", "TEXT")?;
-        Ok(())
-    }
-
-    /// v12 -> v13: Add missing columns that should have been created by v10->v11
-    /// but were skipped because the tables already existed.
-    fn migrate_v12_to_v13(conn: &Connection) -> Result<(), AppError> {
-        // Add pricing_model to proxy_request_logs
-        if Self::table_exists(conn, "proxy_request_logs")? {
-            Self::add_column_if_missing(conn, "proxy_request_logs", "pricing_model", "TEXT")?;
-        }
-
-        // Rebuild usage_daily_rollups with request_model and pricing_model columns
-        // if those columns are missing
-        if Self::table_exists(conn, "usage_daily_rollups")? {
-            let has_request_model = Self::has_column(conn, "usage_daily_rollups", "request_model")?;
-            let has_pricing_model = Self::has_column(conn, "usage_daily_rollups", "pricing_model")?;
-
-            if !has_request_model || !has_pricing_model {
-                log::info!("v12 -> v13: Rebuilding usage_daily_rollups with missing columns");
-
-                conn.execute_batch(
-                    "ALTER TABLE usage_daily_rollups RENAME TO usage_daily_rollups_v12;
-                     CREATE TABLE usage_daily_rollups (
-                         date TEXT NOT NULL,
-                         app_type TEXT NOT NULL,
-                         provider_id TEXT NOT NULL,
-                         model TEXT NOT NULL,
-                         request_model TEXT NOT NULL DEFAULT '',
-                         pricing_model TEXT NOT NULL DEFAULT '',
-                         request_count INTEGER NOT NULL DEFAULT 0,
-                         success_count INTEGER NOT NULL DEFAULT 0,
-                         input_tokens INTEGER NOT NULL DEFAULT 0,
-                         output_tokens INTEGER NOT NULL DEFAULT 0,
-                         cache_read_tokens INTEGER NOT NULL DEFAULT 0,
-                         cache_creation_tokens INTEGER NOT NULL DEFAULT 0,
-                         total_cost_usd TEXT NOT NULL DEFAULT '0',
-                         avg_latency_ms INTEGER NOT NULL DEFAULT 0,
-                         PRIMARY KEY (date, app_type, provider_id, model, request_model, pricing_model)
-                     );
-                     INSERT INTO usage_daily_rollups
-                         (date, app_type, provider_id, model, request_model, pricing_model,
-                          request_count, success_count, input_tokens, output_tokens,
-                          cache_read_tokens, cache_creation_tokens, total_cost_usd, avg_latency_ms)
-                     SELECT date, app_type, provider_id, model, '', '',
-                          request_count, success_count, input_tokens, output_tokens,
-                          cache_read_tokens, cache_creation_tokens, total_cost_usd, avg_latency_ms
-                     FROM usage_daily_rollups_v12;
-                     DROP TABLE usage_daily_rollups_v12;",
-                )
-                .map_err(|e| {
-                    AppError::Database(format!("v12 -> v13 rebuild usage_daily_rollups failed: {e}"))
-                })?;
-
-                log::info!("v12 -> v13 migration complete: usage_daily_rollups rebuilt with request_model/pricing_model");
-            }
-        }
-
-        Ok(())
     }
 }

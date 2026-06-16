@@ -2,7 +2,6 @@
 
 mod auth;
 mod balance;
-mod backends;
 mod codex_oauth;
 mod coding_plan;
 mod config;
@@ -24,6 +23,7 @@ mod provider;
 mod proxy;
 mod session_manager;
 mod settings;
+pub mod backends;
 pub mod skill;
 mod stream_check;
 mod subscription;
@@ -37,7 +37,6 @@ mod workspace;
 
 pub use auth::*;
 pub use balance::*;
-pub use backends::*;
 pub use codex_oauth::*;
 pub use coding_plan::*;
 pub use config::*;

@@ -1,0 +1,40 @@
+=== BANCO ATUAL ===
+Path: C:\Users\Roberto Amaral\.cc-switch\cc-switch.db
+Versao: 11
+  providers: 19 registros
+  provider_endpoints: 13 registros
+  sqlite_sequence: 2 registros
+  mcp_servers: 1 registros
+  prompts: 0 registros
+  skills: 3 registros
+  skill_repos: 5 registros
+  settings: 10 registros
+  proxy_config: 3 registros
+  provider_health: 0 registros
+  proxy_request_logs: 11806 registros
+  model_pricing: 159 registros
+  stream_check_logs: 0 registros
+  proxy_live_backup: 0 registros
+  session_log_sync: 321 registros
+  managed_backends: 8 registros
+  usage_daily_rollups: 5 registros
+=== BACKUP MAIS RECENTE ===
+Path: C:\Users\Roberto Amaral\.cc-switch\backups\db_backup_20260615_222755.db
+Versao: 13
+  providers: 19 registros
+  provider_endpoints: 13 registros
+  sqlite_sequence: 2 registros
+  mcp_servers: 1 registros
+  prompts: 0 registros
+  skills: 3 registros
+  skill_repos: 5 registros
+  settings: 10 registros
+  proxy_config: 3 registros
+  provider_health: 0 registros
+  proxy_request_logs: 11993 registros
+  model_pricing: 158 registros
+  stream_check_logs: 0 registros
+  proxy_live_backup: 0 registros
+  session_log_sync: 319 registros
+  managed_backends: 8 registros
+  usage_daily_rollups: 4 registros

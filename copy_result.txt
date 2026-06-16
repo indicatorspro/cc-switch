@@ -1,0 +1,7 @@
+Step 1: Copied 1018 files from UPDATE
+  OK: database/backends.rs exists (6197 bytes)
+  OK: commands/backends.rs exists (15514 bytes)
+  OK: database/schema.rs exists (96049 bytes)
+  OK: database/mod.rs exists (9201 bytes)
+  OK: commands/mod.rs exists (1131 bytes)
+  OK: lib.rs exists (91497 bytes)

@@ -1,3 +1,4 @@
+use crate::database::backends::ManagedBackend;
 use crate::services::backend_registry::BackendRegistry;
 use crate::services::backend_runtime::{BackendKind, BackendStatus};
 use crate::AppState;
@@ -365,12 +366,12 @@ pub async fn write_backend_env_file(
 }
 
 impl BackendInfo {
-    fn from_row(b: crate::database::ManagedBackend) -> Self {
+    fn from_row(b: ManagedBackend) -> Self {
         Self::from_row_with_runtime(b, None)
     }
 
     fn from_row_with_runtime(
-        b: crate::database::ManagedBackend,
+        b: ManagedBackend,
         runtime: Option<(BackendStatus, Option<u32>, Option<String>)>,
     ) -> Self {
         let start_args = b
@@ -410,7 +411,7 @@ impl BackendInfo {
     }
 }
 
-fn backend_health_url(backend: &crate::database::ManagedBackend) -> Result<String, String> {
+fn backend_health_url(backend: &ManagedBackend) -> Result<String, String> {
     if backend.port == 0 {
         return Err("Port is required to run a health check".to_string());
     }
@@ -427,7 +428,7 @@ fn backend_health_url(backend: &crate::database::ManagedBackend) -> Result<Strin
     Ok(format!("http://{}:{}{}", backend.host, backend.port, path))
 }
 
-fn request_builder(backend: &crate::database::ManagedBackend, url: &str) -> reqwest::RequestBuilder {
+fn request_builder(backend: &ManagedBackend, url: &str) -> reqwest::RequestBuilder {
     let client = reqwest::Client::new();
     let mut request = client.get(url);
     if let Some(api_key) = backend.api_key.as_deref().filter(|value| !value.is_empty()) {

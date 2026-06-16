@@ -254,29 +254,6 @@ impl ProxyServer {
         }
     }
 
-    /// 强制终止代理服务器（立即 abort 任务，释放端口）
-    ///
-    /// 与 `stop()` 不同：不等待优雅关闭，直接终止 tokio 任务。
-    /// 适用于 stop() 超时或服务器卡死的场景。
-    pub async fn force_stop(&self) -> Result<(), ProxyError> {
-        // 1. 先尝试发送关闭信号（优雅路径）
-        if let Some(tx) = self.shutdown_tx.write().await.take() {
-            let _ = tx.send(());
-        }
-
-        // 2. 强制 abort 服务器任务
-        if let Some(handle) = self.server_handle.write().await.take() {
-            handle.abort();
-            log::warn!("[{}] 代理服务器任务已强制终止", log_srv::STOP_TIMEOUT);
-        }
-
-        // 3. 清除状态
-        self.state.status.write().await.running = false;
-        *self.state.start_time.write().await = None;
-
-        Ok(())
-    }
-
     pub async fn get_status(&self) -> ProxyStatus {
         let mut status = self.state.status.read().await.clone();
 

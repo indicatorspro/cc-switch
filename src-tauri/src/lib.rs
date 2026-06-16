@@ -600,6 +600,25 @@ pub fn run() {
                             log::warn!("✗ Codex provider template bucket migration failed: {e}");
                         }
                     }
+
+                    // 统一会话开关的官方历史迁移：开关开启但上次未完成（如文件被占用
+                    // 中途失败）时在启动期重试；函数内部自门控，开关关闭时直接跳过。
+                    match crate::codex_history_migration::maybe_migrate_codex_official_history_to_unified_bucket() {
+                        Ok(outcome) => {
+                            if let Some(reason) = outcome.skipped_reason {
+                                log::debug!("○ Codex official history unify migration skipped: {reason}");
+                            } else {
+                                log::info!(
+                                    "✓ Codex official history unify migration completed: jsonl_files={}, state_rows={}",
+                                    outcome.migrated_jsonl_files,
+                                    outcome.migrated_state_rows
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!("✗ Codex official history unify migration failed: {e}");
+                        }
+                    }
                 });
             }
 
@@ -1156,6 +1175,8 @@ pub fn run() {
             commands::read_live_provider_settings,
             commands::get_settings,
             commands::save_settings,
+            commands::has_codex_unify_history_backup,
+            commands::restore_codex_unified_history,
             commands::get_rectifier_config,
             commands::set_rectifier_config,
             commands::get_optimizer_config,
@@ -1286,7 +1307,6 @@ pub fn run() {
             commands::start_proxy_server,
             commands::stop_proxy_server,
             commands::stop_proxy_with_restore,
-            commands::force_stop_proxy_server,
             commands::get_proxy_takeover_status,
             commands::set_proxy_takeover_for_app,
             commands::get_proxy_status,
@@ -1436,21 +1456,21 @@ pub fn run() {
             commands::enter_lightweight_mode,
             commands::exit_lightweight_mode,
             commands::is_lightweight_mode,
-            // Managed Backends
-            commands::list_backends,
-            commands::get_backend,
-            commands::create_backend,
-            commands::update_backend,
-            commands::delete_backend,
-            commands::start_backend,
-            commands::stop_backend,
-            commands::restart_backend,
-            commands::get_backend_logs,
-            commands::send_backend_input,
-            commands::check_backend_health,
-            commands::list_backend_models,
-            commands::read_backend_env_file,
-            commands::write_backend_env_file,
+            // Managed backends (external proxy management)
+            commands::backends::list_backends,
+            commands::backends::get_backend,
+            commands::backends::create_backend,
+            commands::backends::update_backend,
+            commands::backends::delete_backend,
+            commands::backends::start_backend,
+            commands::backends::stop_backend,
+            commands::backends::restart_backend,
+            commands::backends::get_backend_logs,
+            commands::backends::send_backend_input,
+            commands::backends::check_backend_health,
+            commands::backends::list_backend_models,
+            commands::backends::read_backend_env_file,
+            commands::backends::write_backend_env_file,
         ]);
 
     let app = builder
@@ -1617,10 +1637,6 @@ pub fn run() {
 /// 使用 stop_with_restore_keep_state 保留 settings 表中的代理状态，下次启动时自动恢复。
 pub async fn cleanup_before_exit(app_handle: &tauri::AppHandle) {
     if let Some(state) = app_handle.try_state::<store::AppState>() {
-        let backend_registry =
-            crate::services::backend_registry::BackendRegistry::get_or_init(state.db.clone());
-        backend_registry.stop_all().await;
-
         let proxy_service = &state.proxy_service;
 
         // 退出时也需要兜底：代理可能已崩溃/未运行，但 Live 接管残留仍在（占位符/备份）。
@@ -1888,11 +1904,11 @@ fn show_database_init_error_dialog(
             "初始化数据库或迁移数据库结构时发生错误：\n\n{error}\n\n\
             数据库文件路径：\n{db}\n\n\
             您的数据尚未丢失，应用不会自动删除数据库文件。\n\
-            常见原因包括：数据库版本过新、文件损坏、权限不足、磁盘空间不足等。\n\n\
+            常见原因包括：文件损坏、权限不足、磁盘空间不足等。\n\n\
             建议：\n\
             1) 先备份整个配置目录（包含 cc-switch.db）\n\
-            2) 如果提示“数据库版本过新”，请升级到更新版本\n\
-            3) 如果刚升级出现异常，可回退旧版本导出/备份后再升级\n\n\
+\
+            2) 如果刚升级出现异常，可回退旧版本导出/备份后再升级\n\n\
             点击「重试」重新尝试初始化\n\
             点击「退出」关闭程序",
             db = db_path.display()
@@ -1902,11 +1918,10 @@ fn show_database_init_error_dialog(
             "An error occurred while initializing or migrating the database:\n\n{error}\n\n\
             Database file path:\n{db}\n\n\
             Your data is NOT lost - the app will not delete the database automatically.\n\
-            Common causes include: newer database version, corrupted file, permission issues, or low disk space.\n\n\
+            Common causes include: corrupted file, permission issues, or low disk space.\n\n\
             Suggestions:\n\
             1) Back up the entire config directory (including cc-switch.db)\n\
-            2) If you see “database version is newer”, please upgrade CC Switch\n\
-            3) If this happened right after upgrading, consider rolling back to export/backup then upgrade again\n\n\
+            2) If this happened right after upgrading, consider rolling back to export/backup then upgrade again\n\n\
             Click 'Retry' to attempt initialization again\n\
             Click 'Exit' to close the program",
             db = db_path.display()

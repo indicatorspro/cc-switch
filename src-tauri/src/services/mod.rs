@@ -31,8 +31,6 @@ pub mod webdav;
 pub mod webdav_auto_sync;
 pub mod webdav_sync;
 
-pub use backend_registry::BackendRegistry;
-pub use backend_runtime::{BackendKind, BackendLogLine, BackendStatus, ManagedBackend};
 pub use config::ConfigService;
 pub use mcp::McpService;
 pub use omo::OmoService;

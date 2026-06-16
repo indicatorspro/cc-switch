@@ -73,6 +73,7 @@ import UsageScriptModal from "@/components/UsageScriptModal";
 import UnifiedMcpPanel from "@/components/mcp/UnifiedMcpPanel";
 import PromptPanel from "@/components/prompts/PromptPanel";
 import { SkillsPage } from "@/components/skills/SkillsPage";
+import { ExternalProxiesPage } from "@/components/external-proxies/ExternalProxiesPage";
 import UnifiedSkillsPanel from "@/components/skills/UnifiedSkillsPanel";
 import { DeepLinkImportDialog } from "@/components/DeepLinkImportDialog";
 import { FirstRunNoticeDialog } from "@/components/FirstRunNoticeDialog";
@@ -91,7 +92,6 @@ import ToolsPanel from "@/components/openclaw/ToolsPanel";
 import AgentsDefaultsPanel from "@/components/openclaw/AgentsDefaultsPanel";
 import OpenClawHealthBanner from "@/components/openclaw/OpenClawHealthBanner";
 import HermesMemoryPanel from "@/components/hermes/HermesMemoryPanel";
-import { ExternalProxiesPage } from "@/components/external-proxies/ExternalProxiesPage";
 
 type View =
   | "providers"
@@ -1183,15 +1183,6 @@ function App() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setCurrentView("externalProxies")}
-                  title="External Proxies"
-                  className="hover:bg-black/5 dark:hover:bg-white/5"
-                >
-                  <Server className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
                   onClick={() => {
                     setSettingsDefaultTab("general");
                     setCurrentView("settings");
@@ -1200,6 +1191,15 @@ function App() {
                   className="hover:bg-black/5 dark:hover:bg-white/5"
                 >
                   <Settings className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCurrentView("externalProxies")}
+                  title="External Proxies"
+                  className="hover:bg-black/5 dark:hover:bg-white/5"
+                >
+                  <Server className="w-4 h-4" />
                 </Button>
                 <UpdateBadge
                   onClick={() => {
