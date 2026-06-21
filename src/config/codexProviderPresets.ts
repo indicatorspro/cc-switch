@@ -1308,4 +1308,21 @@ base_url = "https://cc-api.pipellm.ai/v1"`,
     endpointCandidates: ["https://api.therouter.ai/v1"],
     category: "aggregator",
   },
+  {
+    name: "FCC-Server",
+    websiteUrl: "https://github.com/Alishahryar1/free-claude-code",
+    category: "third_party",
+    auth: { FCC_CODEX_API_KEY: "" },
+    config: `model_provider = "fcc"
+model = "anthropic/claude-3-5-sonnet"
+disable_response_storage = true
+
+[model_providers.fcc]
+name = "Free Claude Code"
+base_url = "http://127.0.0.1:8082/v1"
+env_key = "FCC_CODEX_API_KEY"
+wire_api = "responses"`,
+    endpointCandidates: ["http://127.0.0.1:8082/v1"],
+    apiFormat: "openai_responses",
+  },
 ];
